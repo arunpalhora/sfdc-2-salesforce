@@ -1,0 +1,191 @@
+<apex:page controller="SFDCConnectionController" sideBar="false">
+  <c:LockScreen />
+  <apex:form id="form" >
+  <apex:sectionHeader subtitle="SFDC Remote Connection" title="{!IF(isRemoteConnected, 'Connected to ' + selectedOrgType + ' Remote (Username: ' + username +')','')}" id="sheader"/>
+    <apex:pageMessages id="messages"/>
+
+    <apex:pageBlock >
+      <apex:outputPanel id="unauthorisedUrl" rendered="{!NOT(ISNULL(unauthorisedUrl))}">
+        <apex:outputText >
+          The remote URL has not been added to the secured list of URLs. Please add this "{!unauthorisedUrl}" URL in the Remote Site Settings.  
+        </apex:outputText>
+        <br/>
+        <apex:outputLink value="{!localServerUrl}/0rp?spl1=1&setupid=SecurityRemoteProxy" target="_blank"><b>Click here</b></apex:outputLink>
+        <apex:outputText value=" to add this secured list of URLs!"/>
+        <br/>
+        <br/>
+      </apex:outputPanel>
+      <apex:pageBlockSection title="Login to Remote Salesforce Org" columns="1" collapsible="false" id="loginDet" rendered="{!NOT(isRemoteConnected)}">
+        <apex:pageBlockSectionItem >
+          <apex:outputLabel value="Environment"/>
+          <apex:selectList value="{!selectedOrgType}" required="true" multiselect="false" size="1">
+            <apex:selectOptions value="{!orgTypes}"/>
+          </apex:selectList> 
+        </apex:pageBlockSectionItem>
+
+        <apex:pageBlockSectionItem >
+          <apex:outputLabel value="Username"/>
+          <apex:inputText value="{!username}"/> 
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem >
+          <apex:outputLabel value="Password"/>
+          <apex:inputSecret value="{!password}"/>
+        </apex:pageBlockSectionItem>
+        
+        <apex:pageBlockSectionItem >
+          <apex:outputLabel value="Security Token"/>
+          <apex:inputSecret value="{!securityToken}"/>
+        </apex:pageBlockSectionItem>
+
+        <apex:pageBlockSectionItem >
+          <apex:outputLabel value=""/>
+          <apex:commandButton value="Login to Remote" action="{!loginNow}" reRender="form, sheader" onclick="startLock();" onComplete="endLock();"/> 
+        </apex:pageBlockSectionItem>
+      </apex:pageBlockSection> 
+      
+      <apex:pageBlockSection columns="1" rendered="{!isRemoteConnected}" title="Select Details" collapsible="false" id="objectType">
+      <apex:actionRegion >
+      <apex:pageBlockSection columns="1">
+        <apex:pageBlockSectionItem >
+          <apex:outputLabel value="Select Object Type" />
+          <apex:selectRadio value="{!selectedObjectType}">
+            <apex:selectOptions value="{!objectTypes}"/>
+            <apex:actionSupport event="onchange" action="{!selectObjectType}" rerender="form, objectType, csObjectView, messages" onsubmit="startLock();" onComplete="endLock();"/>
+          </apex:selectRadio>
+        </apex:pageBlockSectionItem>
+      
+        <apex:pageBlockSectionItem rendered="{!(selectedObjectType!='NONE' && selectedObjectType != '')}">
+          <apex:outputLabel value="Select a {!selectedObjectType}"/>
+          <apex:selectList value="{!selectedObject}"  multiselect="false" size="1">
+            <apex:selectOptions value="{!availableObjects}"/>
+            <apex:actionSupport event="onchange" action="{!getObjectDetails}" rerender="csObjectView, messages" onsubmit="startLock();" onComplete="endLock();"/>
+          </apex:selectList>
+        </apex:pageBlockSectionItem>
+      </apex:pageBlockSection>
+      </apex:actionRegion>
+      </apex:pageBlockSection>
+
+      <apex:outputPanel id="csObjectView">
+      <apex:actionRegion >
+        <apex:pageBlockSection columns="1" title="Details for {!selectedObjectType + ' - ' + selectedObjectDefinition.label + ' (' + selectedObjectDefinition.name +')'}" collapsible="true"
+          rendered="{!AND((selectedObject!='NONE' && selectedObject != ''), NOT(ISNULL(selectedObjectDefinition)))}">
+          <apex:outputPanel id="fdetails">
+            <div id="fieldDetails" style="overflow:auto; max-height:300px;">
+              <apex:pageBlockTable value="{!selectedObjectDefinition.fields}" var="f">
+                <apex:column headerValue="Field Name" value="{!f.label}"/>
+                <apex:column headerValue="API Name" value="{!f.name}"/>
+                <apex:column headerValue="Data type" value="{!f.type}"/>
+                <apex:column headerValue="Selected to Retrieve Remote Data">
+                  <apex:inputCheckbox value="{!f.isSelected}"/>
+                </apex:column>
+              </apex:pageBlockTable>
+            </div>
+          </apex:outputPanel>
+        </apex:pageBlockSection>
+
+        <apex:pageBlockSection columns="1" title="Actions" collapsible="true" rendered="{!NOT(ISNULL(selectedObjectDefinition))}">
+          <b>Select filters and click "Get Records" to query records for "{!selectedObjectDefinition.name}" object from remote instance!</b>
+          <apex:outputPanel id="aaaaa">
+          <div style="width:100%">
+            <div style="width: 50%; float:left;">
+          <apex:pageBlockTable value="{!filters}" var="f" align="left"> 
+            <apex:column headerValue="Field">
+              <apex:selectList value="{!f.selectedField}"  multiselect="false" size="1">
+                <apex:selectOptions value="{!f.fieldNames}"/>
+              </apex:selectList>
+            </apex:column>
+             <apex:column headerValue="Operator">
+              <apex:selectList value="{!f.selectedOperator}"  multiselect="false" size="1">
+                <apex:selectOptions value="{!f.operators}"/>
+              </apex:selectList>
+            </apex:column>
+             <apex:column headerValue="Value">
+              <apex:inputText value="{!f.values}" />
+            </apex:column>
+            <apex:column ><b>AND</b></apex:column>
+          </apex:pageBlockTable>
+            </div>
+
+            <div style="width: 50%; float:left;">
+              <apex:pageBlockSection columns="1">
+                <apex:pageBlockSectionItem >
+                  <apex:outputLabel value="Records Order By" />
+                  <apex:outputPanel >
+                    <apex:selectList value="{!orderByFieldSelected}"  multiselect="false" size="1">
+                      <apex:selectOptions value="{!orderByField}"/>
+                    </apex:selectList>
+                    <apex:selectList value="{!orderBySelected}"  multiselect="false" size="1">
+                      <apex:selectOptions value="{!orderBy}"/>
+                    </apex:selectList>
+                  </apex:outputPanel>
+                </apex:pageBlockSectionItem>
+
+                <apex:pageBlockSectionItem >
+                  <apex:outputLabel value="No of Records To Retrieve" />
+                    <apex:selectList value="{!noOfRecordsToQuerySelected}"  multiselect="false" size="1">
+                      <apex:selectOptions value="{!noOfRecordsToQuery}"/>
+                    </apex:selectList>
+                </apex:pageBlockSectionItem>
+              </apex:pageBlockSection>
+            </div>
+          </div>
+          </apex:outputPanel>
+
+          <apex:commandButton value="Get Records" action="{!queryRemote}" rerender="retrievedRecords, messages" onclick="startLock();" onComplete="endLock();"/>
+        </apex:pageBlockSection>
+      </apex:actionRegion>
+
+        <apex:outputPanel id="retrievedRecords">
+          <apex:pageBlockSection columns="1" title="Retrieved Records" collapsible="true" rendered="{!recordsForSelectedObject!=null && recordsForSelectedObject.totalSize>0}">
+            <br/><b>Total number of retrieved records: {!recordsForSelectedObject.totalSize}</b>
+            <apex:outputPanel >
+            <div id="retrievedData" style="overflow:auto; max-height:300px; max-width:1580px;">
+            <table class="list">
+              <tr class="headerRow">
+                <apex:repeat value="{!fieldsToBeInserted}" var="f">
+                  <td class="dataCell"><b>{!f}</b></td>
+                </apex:repeat>
+              </tr>
+
+              <apex:repeat value="{!recordsForSelectedObject.records}" var="s">
+                <tr class="dataRow">
+                  <apex:repeat value="{!fieldsToBeInserted}" var="f">
+                      <td class="dataCell">
+                        <apex:outputfield value="{!s[f]}"/>
+                      </td>
+                  </apex:repeat>
+                </tr>
+              </apex:repeat>
+            </table>
+            </div>
+            </apex:outputPanel>
+            <apex:outputPanel id="refs" rendered="{!referenceFields.size>0}">
+              <apex:actionRegion >
+              <apex:pageBlockSection columns="1">
+                 <b>There are reference fields which are there in remote org. Please map following references to correct values in your local organization before inserting!</b>
+                <apex:pageBlockSectionItem >
+                  <apex:outputLabel value="{!referencesLabel}"/>
+                  <apex:commandLink action="{!showHideRefernceFields}" value="Click here" rerender="refs, messages" onclick="startLock();" onComplete="endLock();"/>
+                </apex:pageBlockSectionItem>
+              </apex:pageBlockSection>
+              </apex:actionRegion>
+              
+              <apex:outputPanel rendered="{!showReferences}">
+                <apex:pageBlockSection columns="1">
+                  <apex:repeat value="{!referenceFields}" var="r">
+                    <apex:inputField value="{!sObjectRecord[r]}"/>
+                  </apex:repeat>
+                </apex:pageBlockSection>
+              </apex:outputPanel>
+            </apex:outputPanel>
+
+            <apex:commandButton action="{!insertRecords}" value="Insert to Local Org" id="theButton" rerender="retrievedRecords, messages" onclick="startLock();" onComplete="endLock();"/>
+          </apex:pageBlockSection>
+        </apex:outputPanel>
+     
+      </apex:outputPanel>
+    </apex:pageBlock>
+
+  </apex:form>
+</apex:page>
